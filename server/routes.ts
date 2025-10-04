@@ -33,12 +33,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertApplicationSchema.parse(req.body);
       const application = await storage.createApplication(validatedData);
       
-      const spreadsheetId = await syncApplicationToSheets(application);
-      const updatedApplication = await storage.updateApplication(application.id, {
-        googleSheetsId: spreadsheetId,
-      });
+      await syncApplicationToSheets(application);
 
-      res.json(updatedApplication);
+      res.json(application);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
     }
@@ -48,9 +45,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const application = await storage.updateApplication(req.params.id, req.body);
       
-      if (application.googleSheetsId) {
-        await updateApplicationInSheets(application);
-      }
+      await updateApplicationInSheets(application);
       
       res.json(application);
     } catch (error: any) {
@@ -89,11 +84,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const newStatus = await analyzeEmailForStatus(email.content, email.subject);
         if (newStatus && newStatus !== application.status) {
           await storage.updateApplication(application.id, { status: newStatus });
-          if (application.googleSheetsId) {
-            const updatedApp = await storage.getApplication(application.id);
-            if (updatedApp) {
-              await updateApplicationInSheets(updatedApp);
-            }
+          const updatedApp = await storage.getApplication(application.id);
+          if (updatedApp) {
+            await updateApplicationInSheets(updatedApp);
           }
           break;
         }

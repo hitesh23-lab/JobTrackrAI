@@ -53,6 +53,14 @@ export default function Dashboard() {
         description: "Your application has been saved and synced to Google Sheets.",
       });
     },
+    onError: (error: any) => {
+      console.error("Error creating application:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create application",
+        variant: "destructive",
+      });
+    },
   });
 
   const syncEmailsMutation = useMutation({
@@ -73,15 +81,17 @@ export default function Dashboard() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    createApplicationMutation.mutate({
-      company: formData.get("company"),
-      title: formData.get("title"),
-      location: formData.get("location"),
-      salary: formData.get("salary"),
-      jobUrl: formData.get("jobUrl"),
+    const data = {
+      company: formData.get("company") as string,
+      title: formData.get("title") as string,
+      location: formData.get("location") as string,
+      salary: formData.get("salary") as string || null,
+      jobUrl: formData.get("jobUrl") as string || null,
       status: "applied",
-      notes: formData.get("notes"),
-    });
+      notes: formData.get("notes") as string || null,
+    };
+    console.log("Submitting application:", data);
+    createApplicationMutation.mutate(data);
   };
 
   const filteredJobs = applications.filter(job => {

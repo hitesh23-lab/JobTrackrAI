@@ -1,9 +1,10 @@
 import { getUncachableGoogleSheetClient } from '../sheets-client';
+import { storage } from '../storage';
 import type { Application } from '@shared/schema';
 
 const SPREADSHEET_NAME = 'Job Applications Tracker';
 
-async function getOrCreateSpreadsheet() {
+async function createSpreadsheet() {
   try {
     const sheets = await getUncachableGoogleSheetClient();
     
@@ -47,14 +48,26 @@ async function getOrCreateSpreadsheet() {
   }
 }
 
+async function getSharedSpreadsheetId(): Promise<string> {
+  const profile = await storage.getProfile();
+  
+  if (profile?.googleSheetsId) {
+    return profile.googleSheetsId;
+  }
+  
+  const spreadsheetId = await createSpreadsheet();
+  
+  if (profile?.id) {
+    await storage.updateProfile(profile.id, { googleSheetsId: spreadsheetId });
+  }
+  
+  return spreadsheetId;
+}
+
 export async function syncApplicationToSheets(application: Application) {
   try {
     const sheets = await getUncachableGoogleSheetClient();
-    let spreadsheetId = application.googleSheetsId;
-
-    if (!spreadsheetId) {
-      spreadsheetId = await getOrCreateSpreadsheet();
-    }
+    const spreadsheetId = await getSharedSpreadsheetId();
 
     const values = [[
       application.id,
@@ -86,14 +99,11 @@ export async function syncApplicationToSheets(application: Application) {
 
 export async function updateApplicationInSheets(application: Application) {
   try {
-    if (!application.googleSheetsId) {
-      return await syncApplicationToSheets(application);
-    }
-
     const sheets = await getUncachableGoogleSheetClient();
+    const spreadsheetId = await getSharedSpreadsheetId();
     
     const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: application.googleSheetsId,
+      spreadsheetId,
       range: 'Applications!A:A',
     });
 
@@ -117,7 +127,7 @@ export async function updateApplicationInSheets(application: Application) {
     ]];
 
     await sheets.spreadsheets.values.update({
-      spreadsheetId: application.googleSheetsId,
+      spreadsheetId,
       range: `Applications!A${rowIndex + 1}:I${rowIndex + 1}`,
       valueInputOption: 'RAW',
       requestBody: {
@@ -125,7 +135,7 @@ export async function updateApplicationInSheets(application: Application) {
       },
     });
 
-    return application.googleSheetsId;
+    return spreadsheetId;
   } catch (error) {
     console.error('Error updating in Google Sheets:', error);
     throw error;

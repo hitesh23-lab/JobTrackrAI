@@ -43,6 +43,7 @@ export class MemStorage implements IStorage {
       location: "San Francisco, CA",
       summary: "Experienced Java Fullstack Lead Engineer with 11 years of expertise in designing and implementing scalable enterprise applications.",
       resumeUrl: null,
+      googleSheetsId: null,
     };
     this.profiles.set(defaultProfile.id, defaultProfile);
   }

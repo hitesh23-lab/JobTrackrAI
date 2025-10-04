@@ -65,6 +65,7 @@ export const profile = pgTable("profile", {
   location: text("location").notNull(),
   summary: text("summary").notNull(),
   resumeUrl: text("resume_url"),
+  googleSheetsId: text("google_sheets_id"),
 });
 
 export const insertProfileSchema = createInsertSchema(profile).omit({
