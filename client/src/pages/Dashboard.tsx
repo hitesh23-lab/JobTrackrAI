@@ -3,123 +3,88 @@ import { JobCard } from "@/components/JobCard";
 import { FilterBar } from "@/components/FilterBar";
 import { ActivityFeed } from "@/components/ActivityFeed";
 import { ApplicationChart } from "@/components/ApplicationChart";
-import { Briefcase, Mail, Calendar, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Briefcase, Mail, Calendar, TrendingUp, Plus } from "lucide-react";
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import type { Application } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const { toast } = useToast();
 
-  const mockJobs = [
-    {
-      id: "1",
-      company: "Google",
-      title: "Senior Java Fullstack Engineer",
-      location: "Mountain View, CA",
-      salary: "$180k - $250k",
-      appliedDate: "2025-10-01",
-      daysAgo: 3,
-      status: "interview" as const,
-    },
-    {
-      id: "2",
-      company: "Amazon",
-      title: "Lead Software Engineer - Java",
-      location: "Seattle, WA",
-      salary: "$170k - $240k",
-      appliedDate: "2025-09-28",
-      daysAgo: 6,
-      status: "screening" as const,
-    },
-    {
-      id: "3",
-      company: "Meta",
-      title: "Java Engineering Lead",
-      location: "Menlo Park, CA",
-      salary: "$190k - $280k",
-      appliedDate: "2025-09-25",
-      daysAgo: 9,
-      status: "applied" as const,
-    },
-    {
-      id: "4",
-      company: "Microsoft",
-      title: "Principal Software Engineer - Java",
-      location: "Redmond, WA",
-      salary: "$185k - $260k",
-      appliedDate: "2025-09-22",
-      daysAgo: 12,
-      status: "screening" as const,
-    },
-    {
-      id: "5",
-      company: "Netflix",
-      title: "Senior Backend Engineer - Java",
-      location: "Los Gatos, CA",
-      salary: "$200k - $300k",
-      appliedDate: "2025-09-20",
-      daysAgo: 14,
-      status: "offer" as const,
-    },
-    {
-      id: "6",
-      company: "Apple",
-      title: "Java Fullstack Lead Engineer",
-      location: "Cupertino, CA",
-      salary: "$195k - $270k",
-      appliedDate: "2025-09-18",
-      daysAgo: 16,
-      status: "rejected" as const,
-    },
-  ];
+  const { data: applications = [], isLoading: applicationsLoading } = useQuery<Application[]>({
+    queryKey: ["/api/applications"],
+  });
 
-  const mockActivities = [
-    {
-      id: "1",
-      type: "interview" as const,
-      title: "Interview Scheduled",
-      description: "Google - Senior Java Fullstack Engineer",
-      timestamp: "2 hours ago",
-    },
-    {
-      id: "2",
-      type: "email" as const,
-      title: "New Email Received",
-      description: "Amazon recruiter responded to your application",
-      timestamp: "5 hours ago",
-    },
-    {
-      id: "3",
-      type: "applied" as const,
-      title: "Application Submitted",
-      description: "Meta - Java Engineering Lead",
-      timestamp: "1 day ago",
-    },
-    {
-      id: "4",
-      type: "offer" as const,
-      title: "Offer Received",
-      description: "Netflix - Senior Backend Engineer",
-      timestamp: "2 days ago",
-    },
-  ];
+  const { data: stats } = useQuery({
+    queryKey: ["/api/stats"],
+  });
 
-  const weeklyData = [
-    { name: 'Week 1', value: 5 },
-    { name: 'Week 2', value: 8 },
-    { name: 'Week 3', value: 6 },
-    { name: 'Week 4', value: 9 },
-  ];
+  const createApplicationMutation = useMutation({
+    mutationFn: async (data: any) => {
+      return await apiRequest("/api/applications", {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/applications"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      setIsDialogOpen(false);
+      toast({
+        title: "Application Added",
+        description: "Your application has been saved and synced to Google Sheets.",
+      });
+    },
+  });
 
-  const statusData = [
-    { name: 'Applied', value: 10 },
-    { name: 'Screening', value: 8 },
-    { name: 'Interview', value: 5 },
-    { name: 'Offer', value: 1 },
-    { name: 'Rejected', value: 6 },
-  ];
+  const syncEmailsMutation = useMutation({
+    mutationFn: async (applicationId: string) => {
+      return await apiRequest(`/api/applications/${applicationId}/sync-emails`, {
+        method: "POST",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/applications"] });
+      toast({
+        title: "Emails Synced",
+        description: "Email communications have been updated from Gmail.",
+      });
+    },
+  });
 
-  const filteredJobs = mockJobs.filter(job => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    createApplicationMutation.mutate({
+      company: formData.get("company"),
+      title: formData.get("title"),
+      location: formData.get("location"),
+      salary: formData.get("salary"),
+      jobUrl: formData.get("jobUrl"),
+      status: "applied",
+      notes: formData.get("notes"),
+    });
+  };
+
+  const filteredJobs = applications.filter(job => {
     const matchesSearch = !searchQuery || 
       job.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
       job.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -127,18 +92,91 @@ export default function Dashboard() {
     return matchesSearch && matchesStatus;
   });
 
+  const getDaysAgo = (date: Date) => {
+    const now = new Date();
+    const appliedDate = new Date(date);
+    const diffTime = Math.abs(now.getTime() - appliedDate.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  const statusData = [
+    { name: 'Applied', value: applications.filter(a => a.status === 'applied').length },
+    { name: 'Screening', value: applications.filter(a => a.status === 'screening').length },
+    { name: 'Interview', value: applications.filter(a => a.status === 'interview').length },
+    { name: 'Offer', value: applications.filter(a => a.status === 'offer').length },
+    { name: 'Rejected', value: applications.filter(a => a.status === 'rejected').length },
+  ];
+
+  const recentActivities = applications
+    .slice(0, 5)
+    .map(app => ({
+      id: app.id,
+      type: app.status === 'interview' ? 'interview' as const : 
+            app.status === 'offer' ? 'offer' as const : 'applied' as const,
+      title: `${app.status === 'interview' ? 'Interview' : app.status === 'offer' ? 'Offer' : 'Applied'} - ${app.company}`,
+      description: app.title,
+      timestamp: `${getDaysAgo(app.appliedDate)} days ago`,
+    }));
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-muted-foreground">Track your Java Fullstack Lead Engineer job applications</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground">Track your Java Fullstack Lead Engineer job applications</p>
+        </div>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button data-testid="button-add-application">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Application
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Application</DialogTitle>
+              <DialogDescription>
+                Add a new job application to track. It will be automatically synced to Google Sheets.
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="company">Company *</Label>
+                <Input id="company" name="company" required data-testid="input-company" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="title">Job Title *</Label>
+                <Input id="title" name="title" required data-testid="input-title" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="location">Location *</Label>
+                <Input id="location" name="location" required data-testid="input-location" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="salary">Salary Range</Label>
+                <Input id="salary" name="salary" placeholder="e.g., $180k - $250k" data-testid="input-salary" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="jobUrl">Job URL</Label>
+                <Input id="jobUrl" name="jobUrl" type="url" placeholder="https://..." data-testid="input-job-url" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Textarea id="notes" name="notes" rows={3} data-testid="textarea-notes" />
+              </div>
+              <Button type="submit" className="w-full" disabled={createApplicationMutation.isPending} data-testid="button-submit-application">
+                {createApplicationMutation.isPending ? "Adding..." : "Add Application"}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Applied" value="24" icon={Briefcase} trend={{ value: "+3 this week", isPositive: true }} />
-        <StatCard title="Active" value="18" icon={Mail} trend={{ value: "6 pending", isPositive: true }} />
-        <StatCard title="Interviews" value="5" icon={Calendar} trend={{ value: "+2 this week", isPositive: true }} />
-        <StatCard title="Response Rate" value="75%" icon={TrendingUp} trend={{ value: "+5% from last month", isPositive: true }} />
+        <StatCard title="Total Applied" value={stats?.totalApplied || 0} icon={Briefcase} />
+        <StatCard title="Active" value={stats?.active || 0} icon={Mail} />
+        <StatCard title="Interviews" value={stats?.interviews || 0} icon={Calendar} />
+        <StatCard title="Response Rate" value={stats?.responseRate || "0%"} icon={TrendingUp} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -148,25 +186,38 @@ export default function Dashboard() {
             onStatusFilter={setStatusFilter}
           />
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {filteredJobs.map((job) => (
-              <JobCard
-                key={job.id}
-                {...job}
-                onViewDetails={() => console.log('View details:', job.id)}
-                onViewEmails={() => console.log('View emails:', job.id)}
-              />
-            ))}
-          </div>
+          {applicationsLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Loading applications...</div>
+          ) : filteredJobs.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No applications found. Click "Add Application" to get started.
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {filteredJobs.map((job) => (
+                <JobCard
+                  key={job.id}
+                  id={job.id}
+                  company={job.company}
+                  title={job.title}
+                  location={job.location}
+                  salary={job.salary || undefined}
+                  appliedDate={new Date(job.appliedDate).toISOString().split('T')[0]}
+                  daysAgo={getDaysAgo(job.appliedDate)}
+                  status={job.status as any}
+                  onViewDetails={() => console.log('View details:', job.id)}
+                  onViewEmails={() => syncEmailsMutation.mutate(job.id)}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="space-y-6">
-          <ActivityFeed activities={mockActivities} />
+          <ActivityFeed activities={recentActivities} />
           <ApplicationChart data={statusData} type="pie" title="Status Distribution" />
         </div>
       </div>
-
-      <ApplicationChart data={weeklyData} type="bar" title="Weekly Application Trends" />
     </div>
   );
 }

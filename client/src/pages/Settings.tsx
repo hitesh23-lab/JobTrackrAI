@@ -6,8 +6,52 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Mail, FileSpreadsheet, User, Bell } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import type { Profile } from "@shared/schema";
 
 export default function Settings() {
+  const { toast } = useToast();
+
+  const { data: profile, isLoading } = useQuery<Profile>({
+    queryKey: ["/api/profile"],
+  });
+
+  const updateProfileMutation = useMutation({
+    mutationFn: async (data: any) => {
+      if (!profile?.id) return;
+      return await apiRequest(`/api/profile/${profile.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/profile"] });
+      toast({
+        title: "Profile Updated",
+        description: "Your profile has been saved successfully.",
+      });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    updateProfileMutation.mutate({
+      fullName: formData.get("fullName"),
+      email: formData.get("email"),
+      title: formData.get("title"),
+      location: formData.get("location"),
+      summary: formData.get("summary"),
+    });
+  };
+
+  if (isLoading) {
+    return <div className="text-center py-8 text-muted-foreground">Loading...</div>;
+  }
+
   return (
     <div className="space-y-6 max-w-4xl">
       <div>
@@ -23,40 +67,74 @@ export default function Settings() {
           </CardTitle>
           <CardDescription>Your professional details for job applications</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name</Label>
-              <Input id="fullName" placeholder="John Doe" defaultValue="John Doe" data-testid="input-full-name" />
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input 
+                  id="fullName" 
+                  name="fullName"
+                  placeholder="John Doe" 
+                  defaultValue={profile?.fullName} 
+                  data-testid="input-full-name" 
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input 
+                  id="email" 
+                  name="email"
+                  type="email" 
+                  placeholder="john@example.com" 
+                  defaultValue={profile?.email} 
+                  data-testid="input-email" 
+                />
+              </div>
             </div>
+            
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="john@example.com" defaultValue="john@example.com" data-testid="input-email" />
+              <Label htmlFor="title">Professional Title</Label>
+              <Input 
+                id="title" 
+                name="title"
+                placeholder="Java Fullstack Lead Engineer" 
+                defaultValue={profile?.title} 
+                data-testid="input-title" 
+              />
             </div>
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="title">Professional Title</Label>
-            <Input id="title" placeholder="Java Fullstack Lead Engineer" defaultValue="Java Fullstack Lead Engineer (11 years)" data-testid="input-title" />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="location">Location</Label>
-            <Input id="location" placeholder="San Francisco, CA" defaultValue="San Francisco, CA" data-testid="input-location" />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="summary">Professional Summary</Label>
-            <Textarea
-              id="summary"
-              placeholder="Brief summary of your experience..."
-              rows={4}
-              defaultValue="Experienced Java Fullstack Lead Engineer with 11 years of expertise in designing and implementing scalable enterprise applications."
-              data-testid="textarea-summary"
-            />
-          </div>
-          
-          <Button data-testid="button-save-profile">Save Profile</Button>
+            
+            <div className="space-y-2">
+              <Label htmlFor="location">Location</Label>
+              <Input 
+                id="location" 
+                name="location"
+                placeholder="San Francisco, CA" 
+                defaultValue={profile?.location} 
+                data-testid="input-location" 
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="summary">Professional Summary</Label>
+              <Textarea
+                id="summary"
+                name="summary"
+                placeholder="Brief summary of your experience..."
+                rows={4}
+                defaultValue={profile?.summary}
+                data-testid="textarea-summary"
+              />
+            </div>
+            
+            <Button 
+              type="submit" 
+              disabled={updateProfileMutation.isPending}
+              data-testid="button-save-profile"
+            >
+              {updateProfileMutation.isPending ? "Saving..." : "Save Profile"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
 
@@ -95,8 +173,6 @@ export default function Settings() {
             </div>
             <Switch defaultChecked data-testid="switch-email-notifications" />
           </div>
-          
-          <Button variant="outline" data-testid="button-reconnect-gmail">Reconnect Gmail</Button>
         </CardContent>
       </Card>
 
@@ -135,8 +211,6 @@ export default function Settings() {
             </div>
             <Badge variant="secondary">Real-time</Badge>
           </div>
-          
-          <Button variant="outline" data-testid="button-reconnect-sheets">Reconnect Sheets</Button>
         </CardContent>
       </Card>
 
